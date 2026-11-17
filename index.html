@@ -4,12 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1d6b47">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stocktelling">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Stocktelling</title>
 <script>
 /* ===== INSTELLING =====
-   Laat leeg en stuur de tellers de link met ?sheet=<Web-app-URL>.
-   (Of plak hier de Web-app-URL die eindigt op /exec.) */
-const SHEET_URL = '';
+   Plak hier de Web-app-URL van je Google Sheet (eindigt op /exec).
+   Dan hoeven tellers enkel hun naam en de teamcode in te geven.
+   Leeg laten kan ook: dan moet elke teller de link met ?sheet=… openen. */
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxx-sVN-Zouh8oTVkhSNQoA_pagmnakztDN7I8PD-jhrMj0Xybb4hmbXcmA57G27rZv/exec';
 </script>
 <style>
 :root{--bg:#f5f3ee;--card:#fff;--ink:#1c2420;--muted:#68706b;--line:#e2dfd6;--accent:#1d6b47;--accent-weak:#e2f0e8;--warn:#9a5413;--warn-weak:#fbefe1;--danger:#b3261e}
@@ -85,6 +93,8 @@ dialog h3{margin:0 0 6px}
   </div>
 
   <button class="btn primary huge" id="addBtn">＋ Telling toevoegen</button>
+  <button class="btn" id="installBtn" style="width:100%;margin-top:10px" hidden>📲 Installeer als app</button>
+  <div class="note" id="iosHint" hidden style="background:var(--accent-weak);color:var(--accent)">Tip: tik onderaan op <b>Deel</b> (vierkant met pijl) → <b>Zet op beginscherm</b> om dit als app te gebruiken.</div>
 
   <div class="card">
     <div class="sum"><span>Laatste 15 tellingen</span><span id="sumAll"></span></div>
@@ -542,6 +552,22 @@ $('#clearBtn').onclick = async () => {
     S.known = {}; armed.clear(); save(); render();
   }
 };
+
+/* ---------- install as app ---------- */
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (!standalone) $('#installBtn').hidden = false; });
+window.addEventListener('appinstalled', () => { $('#installBtn').hidden = true; toast('App geïnstalleerd ✓'); });
+$('#installBtn').onclick = async () => {
+  if (!installEvt) return;
+  installEvt.prompt();
+  try { await installEvt.userChoice; } catch {}
+  installEvt = null; $('#installBtn').hidden = true;
+};
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+let hintSeen = false; try { hintSeen = !!localStorage.getItem('st_ioshint'); } catch {}
+if (isIOS && !standalone && !hintSeen){ $('#iosHint').hidden = false; try { localStorage.setItem('st_ioshint', '1'); } catch {} }
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
 
 /* ---------- boot ---------- */
 renderWho(); render(); renderStatus(); setupDecoder();
