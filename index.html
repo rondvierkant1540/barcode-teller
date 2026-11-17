@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1d6b47">
-<title>Barcode teller</title>
+<title>Stocktelling</title>
 <script>
 /* ===== INSTELLING =====
-   Plak hier de Web-app-URL van je Google Sheet (eindigt op /exec).
-   Leeg laten = dan kan elke teller de link zelf invullen onder "Instellingen". */
+   Laat leeg en stuur de tellers de link met ?sheet=<Web-app-URL>.
+   (Of plak hier de Web-app-URL die eindigt op /exec.) */
 const SHEET_URL = '';
 </script>
 <style>
@@ -18,45 +18,32 @@ const SHEET_URL = '';
 [hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 button,input{font:inherit;color:inherit}
-main{max-width:560px;margin:0 auto;padding:max(12px,env(safe-area-inset-top)) 12px calc(100px + env(safe-area-inset-bottom))}
-.top{display:flex;align-items:center;gap:8px;margin:2px 2px 10px}
-.top h1{font-size:18px;margin:0;flex:1}
+main{max-width:560px;margin:0 auto;padding:max(12px,env(safe-area-inset-top)) 12px calc(90px + env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;gap:8px;margin:2px 2px 12px}
+.top h1{font-size:19px;margin:0;flex:1}
 .pill{border:1px solid var(--line);background:var(--card);border-radius:99px;padding:5px 11px;font-size:14px;font-weight:600}
-.cam{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:4/3}
-.cam video{width:100%;height:100%;object-fit:cover;display:block}
-.guide{position:absolute;left:10%;right:10%;top:30%;bottom:30%;border:3px solid rgba(255,255,255,.85);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.28);transition:border-color .15s}
-.guide.hit{border-color:#4cd98f}
-.camoff{position:absolute;inset:0;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;color:#fff;text-align:center;padding:20px}
-.camtools{position:absolute;right:8px;top:8px;display:flex;gap:6px}
-.camtools button{background:rgba(0,0,0,.55);color:#fff;border:0;border-radius:99px;padding:7px 12px;font-size:14px}
-.last{position:absolute;left:8px;right:8px;bottom:8px;background:rgba(0,0,0,.65);color:#fff;border-radius:10px;padding:7px 10px;font-size:15px;display:none}
-.btn{border:1px solid var(--line);background:var(--card);padding:11px 14px;border-radius:11px;font-weight:600;cursor:pointer}
+.btn{border:1px solid var(--line);background:var(--card);padding:11px 14px;border-radius:12px;font-weight:600;cursor:pointer}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn.danger{color:var(--danger)}
+.btn.huge{width:100%;padding:18px;font-size:19px;border-radius:14px}
 .row{display:flex;gap:8px;align-items:center}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:12px}
-input[type=text],input[type=url]{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:var(--bg);outline:none}
-input:focus{border-color:var(--accent)}
-.sum{display:flex;justify-content:space-between;color:var(--muted);font-size:14px;margin:2px 2px 6px}
+input[type=text],input[type=url],input[type=number]{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:var(--bg);outline:none}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-weak)}
+.sum{display:flex;justify-content:space-between;color:var(--muted);font-size:14px;margin:2px 2px 4px}
 ul{list-style:none;margin:0;padding:0}
-li{padding:8px 0;border-top:1px solid var(--line)}
-li .main{display:flex;align-items:center;gap:8px}
-li .info{flex:1;min-width:0;text-align:left;background:none;border:0;padding:4px 0;cursor:pointer}
-li .info .code{display:block}
-li .desc{display:block;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-li .panel{display:grid;gap:6px;margin-top:8px}
-li .panel input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font-size:15px}
-li:first-child{border-top:0}
-li.new{animation:hl 1.2s ease-out}
+#list li{display:flex;align-items:center;gap:10px;padding:10px 2px;border-top:1px solid var(--line);cursor:pointer}
+#list li:first-child{border-top:0}
+#list li.new{animation:hl 1.4s ease-out}
 @keyframes hl{from{background:var(--accent-weak)}to{background:transparent}}
-.code{flex:1;min-width:0;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;overflow:hidden;text-overflow:ellipsis}
-.q{display:flex;align-items:center;gap:4px}
-.q button{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--bg);font-size:20px;line-height:1;padding:0}
-.q input{width:58px;height:38px;text-align:center;font-weight:700;font-size:17px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}
-.empty{color:var(--muted);text-align:center;padding:18px 0}
-.bar{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom))}
-.bar .row{max-width:560px;margin:0 auto}
-.status{flex:1;display:flex;align-items:center;gap:8px;font-weight:600;padding:12px 4px}
+.li-l{flex:1;min-width:0}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px}
+.sub{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qty{font-weight:800;font-size:18px;font-variant-numeric:tabular-nums}
+.pend{font-size:12px;color:var(--warn)}
+.empty{color:var(--muted);text-align:center;padding:18px 0;cursor:default!important}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:8px 14px calc(8px + env(safe-area-inset-bottom))}
+.status{max-width:560px;margin:0 auto;display:flex;align-items:center;gap:8px;font-weight:600;padding:8px 0}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
 .dot.ok{background:var(--accent)} .dot.wait{background:var(--warn)} .dot.err{background:var(--danger)}
 .small{font-size:13.5px;color:var(--muted)}
@@ -64,9 +51,27 @@ details summary{cursor:pointer;font-weight:600;list-style:none}
 details summary::-webkit-details-marker{display:none}
 details summary::after{content:" ▾";color:var(--muted)}
 details[open] summary::after{content:" ▴"}
-label.f{display:block;font-size:13px;color:var(--muted);font-weight:600;margin:12px 0 5px}
-.note{font-size:13.5px;padding:9px 11px;border-radius:10px;background:var(--warn-weak);color:var(--warn);margin-top:10px}
-.toast{position:fixed;left:50%;top:14px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:10px;font-size:14.5px;z-index:9;display:none;max-width:90vw}
+label.f{display:block;font-size:13.5px;color:var(--muted);font-weight:600;margin:12px 0 5px}
+.switch{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14.5px}
+.switch input{width:20px;height:20px;accent-color:var(--accent)}
+.note{font-size:14px;padding:9px 11px;border-radius:10px;background:var(--warn-weak);color:var(--warn);margin-top:10px}
+/* modal */
+.modal{position:fixed;inset:0;z-index:20;background:var(--bg);overflow:auto;-webkit-overflow-scrolling:touch}
+.mwrap{max-width:560px;margin:0 auto;padding:max(10px,env(safe-area-inset-top)) 12px calc(20px + env(safe-area-inset-bottom))}
+.mhead{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.mhead b{flex:1;font-size:18px}
+.mhead button{border:0;background:var(--card);border:1px solid var(--line);border-radius:99px;width:42px;height:42px;font-size:20px}
+.cam{position:relative;background:#000;border-radius:14px;overflow:hidden;aspect-ratio:3/4;max-height:62vh;width:100%}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.guide{position:absolute;left:8%;right:8%;top:36%;bottom:36%;border:3px solid rgba(255,255,255,.9);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.3)}
+.cammsg{position:absolute;left:10px;right:10px;bottom:10px;color:#fff;text-align:center;font-size:14.5px;background:rgba(0,0,0,.55);border-radius:10px;padding:7px}
+.camtools{position:absolute;right:8px;top:8px}
+.camtools button{background:rgba(0,0,0,.55);color:#fff;border:0;border-radius:99px;padding:7px 12px;font-size:14px}
+.bcbox{display:flex;align-items:center;gap:8px}
+.bcbox input{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:19px;font-weight:700}
+.bcbox input[readonly]{border-color:transparent;background:transparent;padding-left:0}
+#fQty{font-size:26px;font-weight:800;text-align:center;padding:12px}
+.toast{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 15px;border-radius:11px;font-size:15px;z-index:40;display:none;max-width:92vw;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 dialog{border:0;border-radius:16px;padding:18px;max-width:420px;width:calc(100% - 32px);background:var(--card);color:var(--ink)}
 dialog::backdrop{background:rgba(0,0,0,.45)}
 dialog h3{margin:0 0 6px}
@@ -75,43 +80,27 @@ dialog h3{margin:0 0 6px}
 <body>
 <main>
   <div class="top">
-    <h1>Barcode teller</h1>
+    <h1>Stocktelling</h1>
     <button class="pill" id="whoBtn">👤 —</button>
   </div>
 
-  <div class="cam">
-    <video id="video" playsinline muted></video>
-    <div class="guide" id="guide" hidden></div>
-    <div class="camoff" id="camoff">
-      <button class="btn primary" id="startBtn">📷 Start camera</button>
-      <div class="small" id="camMsg" style="color:#ddd">Houd de barcode horizontaal in het kader.</div>
-    </div>
-    <div class="camtools" id="camtools" hidden>
-      <button id="torchBtn" hidden>🔦 Licht</button>
-      <button id="stopBtn">⏸ Pauze</button>
-    </div>
-    <div class="last" id="last"></div>
-  </div>
-
-  <form class="row card" id="manual" autocomplete="off">
-    <input type="text" id="manualIn" inputmode="numeric" placeholder="Of typ / handscanner hier" autocapitalize="off" spellcheck="false">
-    <button class="btn" type="submit">＋</button>
-  </form>
+  <button class="btn primary huge" id="addBtn">＋ Telling toevoegen</button>
 
   <div class="card">
-    <div class="sum"><span id="sumLines">0 producten</span><span id="sumUnits">0 stuks</span></div>
+    <div class="sum"><span>Laatste 15 tellingen</span><span id="sumAll"></span></div>
     <ul id="list"></ul>
+    <div class="small" style="margin-top:6px">Tik op een telling om ze aan te passen of te verwijderen.</div>
   </div>
 
   <details class="card" id="settings">
     <summary>Instellingen</summary>
+    <label class="switch"><input type="checkbox" id="hwToggle"> Ik gebruik een handscanner (geen camera)</label>
     <label class="f" for="urlIn">Koppeling met Google Sheet (Web-app-URL)</label>
     <input type="url" id="urlIn" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false">
     <div class="small" id="urlFixed" hidden style="margin-top:6px">Ingesteld in de pagina zelf.</div>
-    <div class="row" style="margin-top:8px"><button class="btn" id="testBtn">Test koppeling</button><span class="small" id="testRes"></span></div>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn" id="testBtn">Test koppeling</button><span class="small" id="testRes"></span></div>
     <div class="row" style="margin-top:14px">
       <button class="btn" id="dlBtn" style="flex:1">⬇ Backup als CSV</button>
-      <button class="btn" id="shareBtn" style="flex:1">✉️ Deel CSV</button>
     </div>
     <div class="row" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
       <span class="small" style="flex:1">Lijst op deze gsm leegmaken (de Sheet blijft staan).</span>
@@ -120,16 +109,48 @@ dialog h3{margin:0 0 6px}
   </details>
 </main>
 
-<div class="bar"><div class="row">
-  <div class="status" id="status"><span class="dot"></span><span>—</span></div>
-  <button class="btn primary" id="sendBtn" hidden>✉️ Verstuur telling</button>
+<div class="bar"><div class="status" id="status"><span class="dot"></span><span>—</span></div></div>
+
+<!-- Telling toevoegen / aanpassen -->
+<div class="modal" id="modal" hidden><div class="mwrap">
+  <div class="mhead"><b id="mTitle">Telling toevoegen</b><span class="small" id="mCount"></span><button id="closeBtn" aria-label="Sluiten">✕</button></div>
+
+  <section id="scanPhase">
+    <div class="cam" id="camBox">
+      <video id="video" playsinline muted></video>
+      <div class="guide"></div>
+      <div class="camtools"><button id="torchBtn" hidden>🔦 Licht</button></div>
+      <div class="cammsg" id="camMsg">Camera starten…</div>
+    </div>
+    <form class="row" id="typeForm" autocomplete="off" style="margin-top:10px">
+      <input type="text" id="typeIn" inputmode="numeric" placeholder="Of typ de barcode" autocapitalize="off" spellcheck="false">
+      <button class="btn" type="submit">OK</button>
+    </form>
+  </section>
+
+  <form id="entryForm" autocomplete="off" hidden>
+    <label class="f" style="margin-top:0">Barcode</label>
+    <div class="bcbox">
+      <input type="text" id="fCode" inputmode="numeric" autocapitalize="off" spellcheck="false">
+      <button type="button" class="btn" id="rescanBtn">↻ Scan</button>
+    </div>
+    <div class="note" id="dupNote" hidden></div>
+    <label class="f" for="fQty">Aantal</label>
+    <input type="number" id="fQty" inputmode="numeric" min="0" step="1" enterkeyhint="send">
+    <label class="f" for="fDesc">Merk / beschrijving</label>
+    <input type="text" id="fDesc" maxlength="120" placeholder="optioneel" enterkeyhint="send">
+    <label class="f" for="fNote">Commentaar</label>
+    <input type="text" id="fNote" maxlength="200" placeholder="optioneel" enterkeyhint="send">
+    <button type="submit" class="btn primary huge" style="margin-top:18px" id="sendBtn">Verzenden</button>
+    <button type="button" class="btn danger" id="delBtn" style="width:100%;margin-top:10px" hidden>Verwijderen</button>
+  </form>
 </div></div>
 
 <div class="toast" id="toast"></div>
 <dialog id="dlg"><h3 id="dlgT"></h3><p class="small" id="dlgP" style="margin:0 0 14px"></p>
   <div class="row" style="justify-content:flex-end"><button class="btn" id="dlgNo">Annuleren</button><button class="btn danger" id="dlgYes">OK</button></div></dialog>
 <dialog id="nameDlg"><form id="nameForm" method="dialog"><h3>Wie telt er?</h3>
-  <p class="small" style="margin:0 0 10px">Je naam komt bij elke scan in de Sheet.</p>
+  <p class="small" style="margin:0 0 10px">Je naam komt bij elke telling in de Sheet.</p>
   <input type="text" id="nameIn" maxlength="40" placeholder="Naam, bv. Jonas" autocomplete="off">
   <label class="f" for="codeIn">Teamcode (krijg je van de verantwoordelijke)</label>
   <input type="text" id="codeIn" maxlength="60" placeholder="Teamcode" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -139,24 +160,35 @@ dialog h3{margin:0 0 6px}
 <script>
 'use strict';
 const $ = s => document.querySelector(s);
-const KEY = 'barcodeteller_v2';
+const KEY = 'stocktelling_v3';
 const rid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const fmtTime = t => new Date(t).toLocaleString('nl-BE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-/* ---------- state (kept on the phone) ---------- */
-let S = { items: [], queue: [], name: '', code: '', url: '', device: '' };
-try { const d = JSON.parse(localStorage.getItem(KEY)); if (d) S = Object.assign(S, d); } catch {}
-if (!Array.isArray(S.items)) S.items = [];
+/* ---------- state (kept on this phone) ---------- */
+// known: barcode -> {qty, desc, note, t}   queue: events waiting to be sent
+let S = { known: {}, queue: [], name: '', code: '', url: '', device: '', hw: false };
+try {
+  const d = JSON.parse(localStorage.getItem(KEY));
+  if (d) S = Object.assign(S, d);
+  else { // take over name/teamcode/link from the previous version
+    const o = JSON.parse(localStorage.getItem('barcodeteller_v2') || 'null');
+    if (o) ['name', 'code', 'url', 'device'].forEach(k => { if (o[k]) S[k] = o[k]; });
+  }
+} catch {}
+if (!S.known || typeof S.known !== 'object') S.known = {};
 if (!Array.isArray(S.queue)) S.queue = [];
 if (!S.device) S.device = 'g' + rid();
-const urlParam = new URLSearchParams(location.search).get('sheet');
-if (urlParam && /^https:\/\/script\.google(usercontent)?\.com\//.test(urlParam)) S.url = urlParam;
+const EXEC_RX = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+\/|macros\/)s\/[\w-]+\/exec\/?$/;
+const urlParam = (new URLSearchParams(location.search).get('sheet') || '').trim();
+if (EXEC_RX.test(urlParam)) S.url = urlParam;
+if (S.url && !EXEC_RX.test(S.url)) S.url = '';
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
 const sheetUrl = () => (SHEET_URL || S.url || '').trim();
 save();
 
-/* ---------- UI helpers ---------- */
+/* ---------- helpers ---------- */
 let tT;
-function toast(m, ms = 2500){ const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(tT); tT = setTimeout(() => t.style.display = 'none', ms); }
+function toast(m, ms = 2200){ const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(tT); tT = setTimeout(() => t.style.display = 'none', ms); }
 function confirmBox(title, text, ok){
   return new Promise(res => {
     const d = $('#dlg'); $('#dlgT').textContent = title; $('#dlgP').textContent = text; $('#dlgYes').textContent = ok;
@@ -166,24 +198,6 @@ function confirmBox(title, text, ok){
     d.showModal();
   });
 }
-function askName(){
-  const d = $('#nameDlg'); $('#nameIn').value = S.name; $('#codeIn').value = S.code;
-  if (!d.showModal){ const v = window.prompt('Wie telt er?', S.name); if (v && v.trim()){ S.name = v.trim().slice(0, 40); save(); renderWho(); } return; }
-  d.showModal(); setTimeout(() => $('#nameIn').focus(), 50);
-}
-$('#nameForm').onsubmit = e => {
-  const v = $('#nameIn').value.trim();
-  if (!v){ e.preventDefault(); $('#nameIn').focus(); return; }
-  S.name = v.slice(0, 40);
-  const c = $('#codeIn').value.trim();
-  if (c !== S.code){ S.code = c; badCode = false; failCount = 0; scheduleFlush(0); }
-  save(); renderWho(); renderStatus();
-};
-$('#nameDlg').addEventListener('cancel', e => { if (!S.name) e.preventDefault(); });
-function renderWho(){ $('#whoBtn').textContent = '👤 ' + (S.name || '—'); }
-$('#whoBtn').onclick = askName;
-$('#status').onclick = () => { if (badCode) askName(); };
-
 let actx;
 function beep(ok = true){
   try {
@@ -196,100 +210,70 @@ function beep(ok = true){
   } catch {}
   try { navigator.vibrate && navigator.vibrate(ok ? 40 : [60, 40, 60]); } catch {}
 }
+const cleanCode = v => String(v || '').replace(/\s+/g, '').trim().slice(0, 64);
 
-/* ---------- list + change log ---------- */
-function logChange(code, delta){
-  if (!delta) return;
-  S.queue.push({ id: S.device + '-' + rid(), t: Date.now(), code, delta });
-  save(); renderStatus(); scheduleFlush(300);
+/* ---------- name + teamcode ---------- */
+let afterName = null;
+function askName(then){
+  afterName = then || null;
+  const d = $('#nameDlg'); $('#nameIn').value = S.name; $('#codeIn').value = S.code;
+  if (!d.showModal){ const v = window.prompt('Wie telt er?', S.name); if (v && v.trim()){ S.name = v.trim().slice(0, 40); save(); renderWho(); } return; }
+  d.showModal(); setTimeout(() => (S.name ? $('#codeIn') : $('#nameIn')).focus(), 50);
 }
-function add(code, n = 1){
-  if (!S.name){ askName(); return; }
-  code = String(code).replace(/\s+/g, '').trim().slice(0, 64);
-  if (!code) return;
-  let it = S.items.find(i => i.code === code);
-  if (it){ it.qty += n; it.t = Date.now(); S.items = [it, ...S.items.filter(i => i !== it)]; }
-  else { it = { code, qty: n, t: Date.now() }; S.items.unshift(it); }
-  logChange(code, n);
-  render(code);
-  const l = $('#last'); l.textContent = `✓ ${code}  →  ${it.qty} st.`; l.style.display = 'block';
-}
-async function setQty(it, q){
-  q = Math.max(0, Math.round(q));
-  if (q === it.qty){ render(); return; }
-  if (q === 0){
-    if (!(await confirmBox('Verwijderen?', `Barcode ${it.code} (${it.qty} st.) schrappen? Dit wordt ook in de Sheet afgetrokken.`, 'Verwijderen'))){ render(); return; }
-    S.items = S.items.filter(i => i !== it);
-  }
-  logChange(it.code, q - it.qty);
-  it.qty = q; save(); render();
-}
-const openSet = new Set();
-function setSub(li, it){
-  const sub = [it.desc, it.note].filter(Boolean).join(' · ');
-  const el = li.querySelector('.desc');
-  el.textContent = sub || (openSet.has(it.code) ? '' : '✎ merk / commentaar');
-  el.style.fontStyle = sub ? 'normal' : 'italic';
-}
-function logInfo(it){
-  S.queue.push({ id: S.device + '-' + rid(), t: Date.now(), code: it.code, delta: 0, desc: it.desc || '', note: it.note || '' });
-  save(); renderStatus(); scheduleFlush(300);
-}
+$('#nameForm').onsubmit = e => {
+  const v = $('#nameIn').value.trim();
+  if (!v){ e.preventDefault(); $('#nameIn').focus(); return; }
+  S.name = v.slice(0, 40);
+  const c = $('#codeIn').value.trim();
+  if (c !== S.code){ S.code = c; badCode = false; failCount = 0; scheduleFlush(0); }
+  save(); renderWho(); renderStatus();
+  const f = afterName; afterName = null; if (f) setTimeout(f, 50);
+};
+$('#nameDlg').addEventListener('cancel', e => { if (!S.name) e.preventDefault(); });
+function renderWho(){ $('#whoBtn').textContent = '👤 ' + (S.name || '—'); }
+$('#whoBtn').onclick = () => askName();
+
+/* ---------- list (last 15) ---------- */
+function pendingCodes(){ return new Set(S.queue.map(e => e.barcode)); }
 function render(flash){
-  const ul = $('#list');
+  const ul = $('#list'), entries = Object.entries(S.known).sort((a, b) => b[1].t - a[1].t);
+  const pend = pendingCodes();
   ul.innerHTML = '';
-  if (!S.items.length) ul.innerHTML = '<li class="empty">Nog niets gescand.</li>';
-  for (const it of S.items){
+  if (!entries.length) ul.innerHTML = '<li class="empty">Nog niets geteld.</li>';
+  for (const [code, it] of entries.slice(0, 15)){
     const li = document.createElement('li');
-    if (it.code === flash) li.className = 'new';
-    li.innerHTML = `<div class="main"><button type="button" class="info"><span class="code"></span><span class="desc"></span></button>
-      <span class="q"><button aria-label="min">−</button><input type="number" inputmode="numeric" min="0"><button aria-label="plus">+</button></span></div>
-      <div class="panel" hidden><input type="text" class="fDesc" maxlength="120" placeholder="Merk / beschrijving (optioneel)"><input type="text" class="fNote" maxlength="200" placeholder="Commentaar (optioneel)"></div>`;
-    li.querySelector('.code').textContent = it.code;
-    const panel = li.querySelector('.panel'), fDesc = li.querySelector('.fDesc'), fNote = li.querySelector('.fNote');
-    fDesc.value = it.desc || ''; fNote.value = it.note || '';
-    panel.hidden = !openSet.has(it.code);
-    setSub(li, it);
-    li.querySelector('.info').onclick = () => {
-      if (openSet.has(it.code)) openSet.delete(it.code); else { openSet.add(it.code); }
-      panel.hidden = !openSet.has(it.code); setSub(li, it);
-      if (!panel.hidden && !it.desc) fDesc.focus();
-    };
-    const onInfo = () => {
-      const d = fDesc.value.trim().slice(0, 120), n = fNote.value.trim().slice(0, 200);
-      if (d === (it.desc || '') && n === (it.note || '')) return;
-      it.desc = d; it.note = n; setSub(li, it); logInfo(it);
-    };
-    fDesc.onchange = onInfo; fNote.onchange = onInfo;
-    [fDesc, fNote].forEach(f => f.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); f.blur(); } });
-    const [minus, plus] = li.querySelectorAll('.q button'), inp = li.querySelector('.q input');
-    inp.value = it.qty;
-    minus.onclick = () => setQty(it, it.qty - 1);
-    plus.onclick = () => setQty(it, it.qty + 1);
-    inp.onchange = () => setQty(it, parseInt(inp.value, 10) || 0);
+    if (code === flash) li.className = 'new';
+    li.innerHTML = '<div class="li-l"><div class="code"></div><div class="sub"></div></div><div style="text-align:right"><div class="qty"></div><div class="pend"></div></div>';
+    li.querySelector('.code').textContent = code;
+    li.querySelector('.sub').textContent = [it.desc, it.note].filter(Boolean).join(' · ') || fmtTime(it.t);
+    li.querySelector('.qty').textContent = it.qty;
+    li.querySelector('.pend').textContent = pend.has(code) ? '⏳ wacht' : '';
+    li.onclick = () => openEdit(code);
     ul.appendChild(li);
   }
-  const units = S.items.reduce((a, i) => a + i.qty, 0);
-  $('#sumLines').textContent = `${S.items.length} product${S.items.length === 1 ? '' : 'en'}`;
-  $('#sumUnits').textContent = `${units} stuks`;
+  $('#sumAll').textContent = entries.length > 15 ? `${entries.length} in totaal op deze gsm` : '';
 }
 
 /* ---------- sync to Google Sheet ---------- */
 let flushing = false, flushT = null, failCount = 0, lastErr = '', badCode = false;
-function scheduleFlush(ms){ clearTimeout(flushT); flushT = setTimeout(flush, ms); }
+function scheduleFlush(ms){ clearTimeout(flushT); flushT = setTimeout(() => { flushT = null; flush(); }, ms); }
 async function postJSON(url, payload){
-  // text/plain body = "simple request": no CORS preflight, which Apps Script can't answer
+  // text/plain body = "simple request": no CORS preflight (Apps Script can't answer one)
   const r = await fetch(url, { method: 'POST', body: JSON.stringify(payload), redirect: 'follow' });
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const j = await r.json();
   if (!j || !j.ok) throw new Error((j && j.error) || 'Onbekend antwoord');
   return j;
 }
+function queueEvent(ev){
+  S.queue.push(Object.assign({ id: S.device + '-' + rid(), t: Date.now() }, ev));
+  save(); renderStatus(); scheduleFlush(200);
+}
 async function flush(){
   const url = sheetUrl();
-  if (flushing || !url || badCode || !S.queue.length) { renderStatus(); return; }
+  if (flushing || !url || badCode || !S.queue.length){ renderStatus(); return; }
   flushing = true; renderStatus();
-  const batch = S.queue.slice(0, 200);
+  const batch = S.queue.slice(0, 100);
   try {
     await postJSON(url, { teller: S.name, code: S.code, device: S.device, events: batch });
     const sent = new Set(batch.map(e => e.id));
@@ -299,7 +283,7 @@ async function flush(){
     failCount++; lastErr = (e && e.message) || 'fout';
     if (/teamcode/i.test(lastErr)) badCode = true;
   }
-  flushing = false; renderStatus();
+  flushing = false; renderStatus(); render();
   if (badCode) return;
   if (S.queue.length) scheduleFlush(failCount ? Math.min(60000, 3000 * 2 ** Math.min(failCount - 1, 4)) : 200);
 }
@@ -309,50 +293,37 @@ setInterval(() => { if (S.queue.length && !flushing && !flushT) scheduleFlush(0)
 function renderStatus(){
   const st = $('#status'), dot = st.querySelector('.dot'), tx = st.querySelector('span:last-child');
   const url = sheetUrl(), n = S.queue.length;
-  $('#sendBtn').hidden = !!url;
-  st.hidden = !url;
-  if (!url) return;
+  if (!url){ dot.className = 'dot err'; tx.textContent = 'Geen koppeling met de Sheet – zie Instellingen'; return; }
   if (badCode){ dot.className = 'dot err'; tx.textContent = `Verkeerde teamcode – tik hier (${n} wachten)`; }
   else if (!n){ dot.className = 'dot ok'; tx.textContent = 'Alles staat in de Sheet'; }
   else if (flushing){ dot.className = 'dot wait'; tx.textContent = `Versturen… (${n})`; }
-  else if (failCount){ dot.className = 'dot err'; tx.textContent = `${n} scan${n === 1 ? '' : 's'} wacht${n === 1 ? '' : 'en'} op verbinding`; }
+  else if (failCount){ dot.className = 'dot err'; tx.textContent = `${n} wacht${n === 1 ? '' : 'en'} op verbinding`; }
   else { dot.className = 'dot wait'; tx.textContent = `${n} te versturen`; }
 }
-
-/* ---------- settings ---------- */
-$('#urlIn').value = S.url;
-$('#urlFixed').hidden = !SHEET_URL; $('#urlIn').hidden = !!SHEET_URL;
-$('#urlIn').onchange = e => { S.url = e.target.value.trim(); save(); failCount = 0; renderStatus(); scheduleFlush(0); };
-$('#testBtn').onclick = async () => {
-  const url = sheetUrl(), out = $('#testRes');
-  if (!url){ out.textContent = 'Nog geen link ingevuld.'; return; }
-  out.textContent = 'Testen…';
-  try { await postJSON(url, { teller: S.name, code: S.code, device: S.device, events: [] }); out.textContent = '✓ Werkt'; }
-  catch (e){ out.textContent = '✗ Lukt niet (' + ((e && e.message) || 'fout') + ')'; }
-};
-if (!sheetUrl()) $('#settings').open = true;
+$('#status').onclick = () => { if (badCode) askName(); else if (!sheetUrl()) $('#settings').open = true; };
 
 /* ---------- camera + decoding ---------- */
 const video = $('#video');
 let stream = null, track = null, timer = null, wakeLock = null, torchOn = false;
-let detector = null, zx = null;
-let cand = null, candN = 0;                 // need 2 identical reads in a row
-const armed = new Map();                    // code -> last time seen (no re-count while still in view)
+let detector = null, zx = null, decoding = false;
+let cand = null, candN = 0;
+const armed = new Map();   // barcode -> last time seen; blocks the same code until it left the frame
 
 async function setupDecoder(){
+  if (detector || zx) return;
   if ('BarcodeDetector' in window){
     try {
       const want = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
       const sup = await BarcodeDetector.getSupportedFormats();
       const f = want.filter(x => sup.includes(x));
-      if (f.length) { detector = new BarcodeDetector({ formats: f }); return; }
+      if (f.length){ detector = new BarcodeDetector({ formats: f }); return; }
     } catch {}
   }
   if (window.ZXing){
     const Z = ZXing, hints = new Map();
     hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.ITF]);
     const r = new Z.MultiFormatReader(); r.setHints(hints);
-    zx = { r, hints };
+    zx = { r };
   }
 }
 const canvas = document.createElement('canvas');
@@ -360,56 +331,47 @@ const ctx = canvas.getContext('2d', { willReadFrequently: true });
 async function readFrame(){
   const vw = video.videoWidth, vh = video.videoHeight;
   if (!vw || !vh) return null;
-  const cw = vw * 0.8, ch = vh * 0.45, sx = (vw - cw) / 2, sy = (vh - ch) / 2;
+  const cw = vw * 0.86, ch = vh * 0.32, sx = (vw - cw) / 2, sy = (vh - ch) / 2;   // band around the guide box
   const sc = Math.min(1, 900 / cw);
   canvas.width = Math.round(cw * sc); canvas.height = Math.round(ch * sc);
   ctx.drawImage(video, sx, sy, cw, ch, 0, 0, canvas.width, canvas.height);
-  if (detector){
-    try { const r = await detector.detect(canvas); return r && r.length ? r[0].rawValue : null; } catch { return null; }
-  }
-  if (zx){
-    const Z = ZXing, src = new Z.HTMLCanvasElementLuminanceSource(canvas);
-    try { return zx.r.decodeWithState(new Z.BinaryBitmap(new Z.HybridBinarizer(src))).getText(); } catch { return null; }
-  }
+  if (detector){ try { const r = await detector.detect(canvas); return r && r.length ? r[0].rawValue : null; } catch { return null; } }
+  if (zx){ const Z = ZXing; try { return zx.r.decodeWithState(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(canvas)))).getText(); } catch { return null; } }
   return null;
 }
 async function loop(){
   if (!stream) return;
-  const code = await readFrame();
-  const now = Date.now();
-  if (code){
-    if (code === cand) candN++; else { cand = code; candN = 1; }
-    if (candN >= 2){
-      const seen = armed.get(code);
-      if (!seen || now - seen > 900){
-        add(code); beep(true);
-        const g = $('#guide'); g.classList.add('hit'); setTimeout(() => g.classList.remove('hit'), 300);
+  if (decoding){
+    const code = await readFrame(), now = Date.now();
+    if (code && decoding){
+      if (code === cand) candN++; else { cand = code; candN = 1; }
+      if (candN >= 2){
+        const seen = armed.get(code);
+        armed.set(code, now);
+        if (!seen || now - seen > 900){ beep(true); onCode(code); }
       }
-      armed.set(code, now);
-    }
-  } else { cand = null; candN = 0; }
-  timer = setTimeout(loop, detector ? 80 : 60);
+    } else if (!code){ cand = null; candN = 0; }
+  }
+  timer = setTimeout(loop, decoding ? (detector ? 80 : 60) : 200);
 }
 async function startCam(){
-  if (!S.name){ askName(); return; }
-  beep(true);
-  if (!window.isSecureContext || !/^https?:$/.test(location.protocol)){
-    $('#camMsg').textContent = 'Je opent dit als los bestand. Een gsm geeft de camera enkel aan een https-adres: open de link van de website.';
-    return;
-  }
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ $('#camMsg').textContent = 'Deze browser ondersteunt geen camera.'; return; }
+  if (stream) return;
+  const msg = $('#camMsg'); msg.hidden = false; msg.textContent = 'Camera starten…';
+  if (!window.isSecureContext || !/^https?:$/.test(location.protocol)){ msg.textContent = 'De camera werkt enkel via de https-link van de website. Typ de barcode hieronder.'; return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ msg.textContent = 'Deze browser ondersteunt geen camera. Typ de barcode hieronder.'; return; }
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
   } catch (e){
     stream = null;
-    $('#camMsg').textContent = e && e.name === 'NotAllowedError' ? 'Camera geweigerd. Tik op het icoon links van het adres → Machtigingen → Camera → Toestaan.' : 'Camera kon niet starten.';
+    msg.textContent = e && e.name === 'NotAllowedError' ? 'Camera geweigerd. Tik op het icoon links van het adres → Machtigingen → Camera → Toestaan.' : 'Camera kon niet starten. Typ de barcode hieronder.';
     return;
   }
+  if (!modalOpen){ stopCam(); return; }
   track = stream.getVideoTracks()[0];
   try { await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch {}
   video.srcObject = stream; await video.play().catch(() => {});
-  if (!detector && !zx) await setupDecoder();
-  $('#camoff').hidden = true; $('#guide').hidden = false; $('#camtools').hidden = false;
+  await setupDecoder();
+  msg.textContent = 'Houd de barcode horizontaal in het kader';
   let caps = {}; try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch {}
   $('#torchBtn').hidden = !caps.torch;
   try { wakeLock = navigator.wakeLock ? await navigator.wakeLock.request('screen') : null; } catch {}
@@ -418,63 +380,166 @@ async function startCam(){
 function stopCam(){
   clearTimeout(timer); timer = null;
   if (stream) stream.getTracks().forEach(t => t.stop());
-  stream = null; track = null; torchOn = false;
+  stream = null; track = null; torchOn = false; video.srcObject = null;
   try { wakeLock && wakeLock.release(); } catch {} wakeLock = null;
-  $('#camoff').hidden = false; $('#guide').hidden = true; $('#camtools').hidden = true;
-  $('#startBtn').textContent = '📷 Verder scannen';
 }
-$('#startBtn').onclick = startCam;
-$('#stopBtn').onclick = stopCam;
 $('#torchBtn').onclick = async () => {
   try { torchOn = !torchOn; await track.applyConstraints({ advanced: [{ torch: torchOn }] }); } catch { toast('Licht niet beschikbaar.'); }
 };
-let resumeAfterHide = false;
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden && stream){ resumeAfterHide = true; stopCam(); }
-  else if (!document.hidden && resumeAfterHide){ resumeAfterHide = false; startCam(); }
-  if (!document.hidden) scheduleFlush(0);
-});
 
-/* ---------- manual / hardware scanner ---------- */
-$('#manual').onsubmit = e => {
+/* ---------- the add / edit screen ---------- */
+let modalOpen = false, mode = 'new', lastSent = null, sessionCount = 0;
+function openModal(){
+  if (!modalOpen){ modalOpen = true; $('#modal').hidden = false; document.body.style.overflow = 'hidden'; try { history.pushState({ modal: 1 }, ''); } catch {} }
+}
+function doClose(){
+  if (!modalOpen) return;
+  modalOpen = false; decoding = false; stopCam();
+  $('#modal').hidden = true; document.body.style.overflow = '';
+  render(lastSent); lastSent = null;
+}
+function closeModal(){ if (history.state && history.state.modal) history.back(); else doClose(); }
+window.addEventListener('popstate', () => { if (modalOpen) doClose(); });
+$('#closeBtn').onclick = closeModal;
+
+function openAdd(){
+  if (!S.name || (sheetUrl() && !S.code)){ askName(openAdd); return; }
+  mode = 'new'; sessionCount = 0; $('#mCount').textContent = '';
+  openModal(); showScan();
+}
+$('#addBtn').onclick = () => { beep(true); openAdd(); };   // beep here unlocks audio on iPhone
+
+function showScan(){
+  $('#mTitle').textContent = 'Telling toevoegen';
+  $('#entryForm').hidden = true; $('#scanPhase').hidden = false;
+  $('#typeIn').value = '';
+  cand = null; candN = 0;
+  if (lastSent) armed.set(lastSent, Date.now());   // same box still in view: don't re-scan it straight away
+  if (S.hw){
+    $('#camBox').hidden = true; $('#typeIn').setAttribute('inputmode', 'none'); $('#typeIn').placeholder = 'Scan met de handscanner';
+    setTimeout(() => $('#typeIn').focus(), 50);
+  } else {
+    $('#camBox').hidden = false; $('#typeIn').setAttribute('inputmode', 'numeric'); $('#typeIn').placeholder = 'Of typ de barcode';
+    decoding = true; startCam();
+  }
+}
+$('#typeForm').onsubmit = e => {
   e.preventDefault();
-  const v = $('#manualIn').value; $('#manualIn').value = '';
-  if (v.trim()){ add(v); beep(true); }
+  const v = cleanCode($('#typeIn').value);
+  if (v){ beep(true); onCode(v); }
 };
 
-/* ---------- CSV backup / share ---------- */
+function onCode(code){
+  decoding = false;
+  showForm(cleanCode(code), 'new');
+}
+function showForm(code, m){
+  mode = m;
+  const k = S.known[code];
+  $('#scanPhase').hidden = true; $('#entryForm').hidden = false;
+  $('#mTitle').textContent = m === 'edit' ? 'Telling aanpassen' : 'Telling toevoegen';
+  const fc = $('#fCode'); fc.value = code; fc.readOnly = m === 'edit';
+  $('#rescanBtn').hidden = m === 'edit';
+  $('#delBtn').hidden = m !== 'edit';
+  const dn = $('#dupNote');
+  if (m === 'new' && k){
+    dn.hidden = false;
+    dn.textContent = `Al geteld op deze gsm: ${k.qty} st. (${fmtTime(k.t)}). Wat je nu verzendt, vervangt die telling.`;
+  } else dn.hidden = true;
+  $('#fQty').value = k ? k.qty : 1;
+  $('#fDesc').value = k ? (k.desc || '') : '';
+  $('#fNote').value = k ? (k.note || '') : '';
+  $('#modal').scrollTop = 0;
+  const q = $('#fQty'); q.focus(); try { q.select(); } catch {}
+}
+$('#rescanBtn').onclick = () => showScan();
+// a changed barcode in the form: refresh the "al geteld" note
+$('#fCode').onchange = e => { const c = cleanCode(e.target.value); if (c && mode === 'new'){ const q = $('#fQty').value, d = $('#fDesc').value, n = $('#fNote').value; showForm(c, 'new'); if (!S.known[c]){ $('#fQty').value = q; $('#fDesc').value = d; $('#fNote').value = n; } } };
+
+$('#entryForm').onsubmit = e => {
+  e.preventDefault();
+  const code = cleanCode($('#fCode').value);
+  if (!code){ $('#fCode').focus(); return; }
+  const raw = $('#fQty').value.trim();
+  const qty = raw === '' ? NaN : Number(raw);
+  if (!Number.isFinite(qty) || qty < 0 || Math.round(qty) !== qty){ toast('Vul een geldig aantal in.'); $('#fQty').focus(); return; }
+  const desc = $('#fDesc').value.trim().slice(0, 120), note = $('#fNote').value.trim().slice(0, 200);
+  S.known[code] = { qty, desc, note, t: Date.now() };
+  queueEvent({ op: 'set', mode, barcode: code, qty, desc, note });
+  lastSent = code; sessionCount++;
+  toast(`✓ ${code} → ${qty} st.`);
+  render(code);
+  if (mode === 'new'){
+    $('#mCount').textContent = `${sessionCount} verzonden`;
+    showScan();
+  } else closeModal();
+};
+$('#delBtn').onclick = async () => {
+  const code = cleanCode($('#fCode').value), k = S.known[code];
+  if (!k) return;
+  if (!(await confirmBox('Telling verwijderen?', `${code} (${k.qty} st.) wordt ook uit de Sheet verwijderd.`, 'Verwijderen'))) return;
+  delete S.known[code];
+  queueEvent({ op: 'del', barcode: code });
+  toast(`${code} verwijderd`);
+  closeModal();
+};
+function openEdit(code){
+  if (!S.known[code]) return;
+  openModal(); stopCam(); decoding = false;
+  showForm(code, 'edit');
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden){ if (stream){ decoding = false; stopCam(); } }
+  else {
+    if (modalOpen && !$('#scanPhase').hidden && !S.hw){ decoding = true; startCam(); }
+    scheduleFlush(0);
+  }
+});
+
+/* ---------- settings ---------- */
+$('#hwToggle').checked = !!S.hw;
+$('#hwToggle').onchange = e => { S.hw = e.target.checked; save(); };
+$('#urlIn').value = S.url;
+$('#urlFixed').hidden = !SHEET_URL; $('#urlIn').hidden = !!SHEET_URL;
+$('#urlIn').onchange = e => {
+  const v = e.target.value.trim();
+  if (v && !EXEC_RX.test(v)){
+    $('#testRes').textContent = /googleusercontent/.test(v)
+      ? '✗ Dit is de doorverwijs-link. Gebruik de link uit Apps Script → Implementaties beheren (script.google.com/…/exec).'
+      : '✗ De link moet beginnen met https://script.google.com/macros/s/ en eindigen op /exec.';
+    return;
+  }
+  S.url = v; save(); failCount = 0; $('#testRes').textContent = ''; renderStatus(); scheduleFlush(0);
+};
+$('#testBtn').onclick = async () => {
+  const url = sheetUrl(), out = $('#testRes');
+  if (!url){ out.textContent = 'Nog geen link ingevuld.'; return; }
+  out.textContent = 'Testen…';
+  try { await postJSON(url, { teller: S.name, code: S.code, device: S.device, events: [] }); out.textContent = '✓ Werkt'; badCode = false; scheduleFlush(0); }
+  catch (e){ out.textContent = '✗ Lukt niet (' + ((e && e.message) || 'fout') + ')'; }
+};
+if (!sheetUrl()) $('#settings').open = true;
+
 function csv(){
-  const q = v => '"' + String(v || '').replace(/"/g, '""') + '"';
-  const lines = ['teller;barcode;aantal;merk_beschrijving;commentaar', ...[...S.items].sort((a, b) => a.t - b.t).map(i => [q(S.name), `="${i.code}"`, i.qty, q(i.desc), q(i.note)].join(';'))];
-  return '﻿' + lines.join('\r\n') + '\r\n';
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const rows = Object.entries(S.known).sort((a, b) => a[1].t - b[1].t)
+    .map(([c, k]) => [q(S.name), `="${c}"`, k.qty, q(k.desc), q(k.note), q(fmtTime(k.t))].join(';'));
+  return '﻿' + ['teller;barcode;aantal;merk_beschrijving;commentaar;tijd', ...rows].join('\r\n') + '\r\n';
 }
-const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`; };
-const summary = () => `${S.items.length} producten, ${S.items.reduce((a, i) => a + i.qty, 0)} stuks`;
-function download(name, text){
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
-  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
-async function share(){
-  if (!S.items.length){ toast('Er is nog niets gescand.'); return; }
-  const name = `telling_${(S.name || 'teller').replace(/[^\w-]+/g, '_')}_${stamp()}.csv`, text = csv();
-  try {
-    const file = new File([text], name, { type: 'text/csv' });
-    if (navigator.canShare && navigator.canShare({ files: [file] })){
-      await navigator.share({ files: [file], title: 'Stocktelling', text: `Stocktelling ${S.name} ${stamp()}: ${summary()}` });
-      return;
-    }
-  } catch (e){ if (e && e.name === 'AbortError') return; }
-  download(name, text); toast('CSV gedownload – voeg het toe als bijlage.', 3500);
-}
-$('#sendBtn').onclick = share;
-$('#shareBtn').onclick = share;
-$('#dlBtn').onclick = () => S.items.length ? download(`telling_${stamp()}.csv`, csv()) : toast('Er is nog niets gescand.');
+$('#dlBtn').onclick = () => {
+  if (!Object.keys(S.known).length){ toast('Er is nog niets geteld.'); return; }
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  const url = URL.createObjectURL(new Blob([csv()], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = `telling_${(S.name || 'teller').replace(/[^\w-]+/g, '_')}_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
+};
 $('#clearBtn').onclick = async () => {
-  if (!S.items.length) return;
-  const pending = S.queue.length ? ` Let op: ${S.queue.length} scans zijn nog niet verstuurd; die worden later nog doorgestuurd.` : '';
-  if (await confirmBox('Lijst leegmaken?', `De lijst op deze gsm (${summary()}) wordt leeggemaakt. Wat al in de Sheet staat, blijft daar.${pending}`, 'Leegmaken')){
-    S.items = []; armed.clear(); save(); render(); $('#last').style.display = 'none';
+  const n = Object.keys(S.known).length;
+  if (!n) return;
+  const pending = S.queue.length ? ` ${S.queue.length} tellingen zijn nog niet verstuurd; die worden later nog doorgestuurd.` : '';
+  if (await confirmBox('Lijst leegmaken?', `De ${n} tellingen op deze gsm verdwijnen uit de lijst. Wat al in de Sheet staat, blijft daar.${pending}`, 'Leegmaken')){
+    S.known = {}; armed.clear(); save(); render();
   }
 };
 
