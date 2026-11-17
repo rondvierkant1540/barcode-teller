@@ -12,13 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Allmatel">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Allmatel Stocktelling</title>
-<script>
-/* ===== INSTELLING =====
-   Plak hier de Web-app-URL van je Google Sheet (eindigt op /exec).
-   Dan hoeven tellers enkel hun naam en de teamcode in te geven.
-   Leeg laten kan ook: dan moet elke teller de link met ?sheet=… openen. */
-const SHEET_URL = 'https://script.google.com/macros/s/AKfycbxx-sVN-Zouh8oTVkhSNQoA_pagmnakztDN7I8PD-jhrMj0Xybb4hmbXcmA57G27rZv/exec';
-</script>
+<!-- De link naar de Google Sheet staat in config.json (naast deze pagina). -->
 <style>
 :root{--brand:#F24E24;--ok:#2e9e5b;--bg:#f6f4f1;--card:#fff;--ink:#22201e;--muted:#6f6a66;--line:#e6e1dc;--accent:#F24E24;--accent-text:#b8361a;--accent-weak:#fde4dc;--warn:#9a5413;--warn-weak:#fbefe1;--danger:#b3261e}
 @media (prefers-color-scheme:dark){:root{--ok:#4cb985;--bg:#161413;--card:#201d1b;--ink:#efebe8;--muted:#a39d98;--line:#36312e;--accent:#F2582F;--accent-text:#ff8a66;--accent-weak:#3d2119;--warn:#e9a25b;--warn-weak:#38291a;--danger:#f08a80}}
@@ -108,9 +102,10 @@ dialog h3{margin:0 0 6px}
   <details class="card" id="settings">
     <summary>Instellingen</summary>
     <label class="switch"><input type="checkbox" id="hwToggle"> Ik gebruik een handscanner (geen camera)</label>
-    <label class="f" for="urlIn">Koppeling met Google Sheet (Web-app-URL)</label>
-    <input type="url" id="urlIn" placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false">
-    <div class="small" id="urlFixed" hidden style="margin-top:6px">Ingesteld in de pagina zelf.</div>
+    <label class="f">Koppeling met Google Sheet</label>
+    <div class="small" id="urlInfo"></div>
+    <input type="url" id="urlIn" placeholder="Andere link enkel op deze gsm (optioneel)" autocapitalize="off" spellcheck="false" style="margin-top:8px">
+    <button class="btn" id="urlReset" style="margin-top:8px" hidden>↺ Terug naar de standaardlink</button>
     <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn" id="testBtn">Test koppeling</button><span class="small" id="testRes"></span></div>
     <div class="row" style="margin-top:14px">
       <button class="btn" id="dlBtn" style="flex:1">⬇ Backup als CSV</button>
@@ -179,13 +174,17 @@ const fmtTime = t => new Date(t).toLocaleString('nl-BE', { day: '2-digit', month
 
 /* ---------- state (kept on this phone) ---------- */
 // known: barcode -> {qty, desc, note, t}   queue: events waiting to be sent
-let S = { known: {}, queue: [], name: '', code: '', url: '', device: '', hw: false };
+// url = eigen link voor deze gsm (optioneel), cfgUrl = standaardlink uit config.json
+let S = { known: {}, queue: [], name: '', code: '', url: '', cfgUrl: '', device: '', hw: false, v: 6 };
 try {
   const d = JSON.parse(localStorage.getItem(KEY));
-  if (d) S = Object.assign(S, d);
-  else { // take over name/teamcode/link from the previous version
+  if (d){
+    const old = !d.v;                 // vorige versie: de link kwam toen niet uit config.json
+    S = Object.assign(S, d);
+    if (old){ S.url = ''; S.v = 6; }  // voortaan volgt elke gsm config.json
+  } else { // take over name/teamcode/link from the previous version
     const o = JSON.parse(localStorage.getItem('barcodeteller_v2') || 'null');
-    if (o) ['name', 'code', 'url', 'device'].forEach(k => { if (o[k]) S[k] = o[k]; });
+    if (o) ['name', 'code', 'device'].forEach(k => { if (o[k]) S[k] = o[k]; });
   }
 } catch {}
 if (!S.known || typeof S.known !== 'object') S.known = {};
@@ -195,8 +194,21 @@ const EXEC_RX = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+\/|macros\/)s\
 const urlParam = (new URLSearchParams(location.search).get('sheet') || '').trim();
 if (EXEC_RX.test(urlParam)) S.url = urlParam;
 if (S.url && !EXEC_RX.test(S.url)) S.url = '';
+if (S.cfgUrl && !EXEC_RX.test(S.cfgUrl)) S.cfgUrl = '';
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
-const sheetUrl = () => (SHEET_URL || S.url || '').trim();
+const sheetUrl = () => (S.url || S.cfgUrl || '').trim();
+// Standaardlink ophalen uit config.json; de laatst gekende blijft bewaard voor als er geen internet is.
+async function loadConfig(){
+  try {
+    const r = await fetch('config.json', { cache: 'no-store' });
+    if (!r.ok) return;
+    const u = String(((await r.json()) || {}).sheetUrl || '').trim();
+    if (u === S.cfgUrl || (u && !EXEC_RX.test(u))) return;
+    S.cfgUrl = u; save();
+    failCount = 0; badCode = false;
+    renderLink(); renderStatus(); scheduleFlush(0);
+  } catch {}
+}
 save();
 
 /* ---------- helpers ---------- */
@@ -300,7 +312,7 @@ async function flush(){
   if (badCode) return;
   if (S.queue.length) scheduleFlush(failCount ? Math.min(60000, 3000 * 2 ** Math.min(failCount - 1, 4)) : 200);
 }
-window.addEventListener('online', () => { failCount = 0; scheduleFlush(100); });
+window.addEventListener('online', () => { failCount = 0; loadConfig(); scheduleFlush(100); });
 setInterval(() => { if (S.queue.length && !flushing && !flushT) scheduleFlush(0); }, 20000);
 
 function renderStatus(){
@@ -416,7 +428,7 @@ window.addEventListener('popstate', () => { if (modalOpen) doClose(); });
 $('#closeBtn').onclick = closeModal;
 
 function openAdd(){
-  if (!S.name || (sheetUrl() && !S.code)){ askName(openAdd); return; }
+  if (!S.name || !S.code){ askName(openAdd); return; }
   mode = 'new'; sessionCount = 0; $('#mCount').textContent = '';
   openModal(); showScan();
 }
@@ -506,15 +518,23 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden){ if (stream){ decoding = false; stopCam(); } }
   else {
     if (modalOpen && !$('#scanPhase').hidden && !S.hw){ decoding = true; startCam(); }
-    scheduleFlush(0);
+    loadConfig(); scheduleFlush(0);
   }
 });
 
 /* ---------- settings ---------- */
 $('#hwToggle').checked = !!S.hw;
 $('#hwToggle').onchange = e => { S.hw = e.target.checked; save(); };
-$('#urlIn').value = S.url;
-$('#urlFixed').hidden = !SHEET_URL; $('#urlIn').hidden = !!SHEET_URL;
+const shortUrl = u => u ? 'script.google.com/…/' + u.split('/s/')[1].split('/')[0].slice(-10) + '/exec' : '';
+function renderLink(){
+  const info = $('#urlInfo');
+  if (S.url) info.textContent = 'Deze gsm gebruikt een eigen link: ' + shortUrl(S.url);
+  else if (S.cfgUrl) info.textContent = 'Standaardlink van de website: ' + shortUrl(S.cfgUrl);
+  else info.textContent = 'Nog geen link gevonden (config.json ontbreekt of geen internet).';
+  $('#urlIn').value = S.url;
+  $('#urlReset').hidden = !S.url;
+}
+$('#urlReset').onclick = () => { S.url = ''; save(); failCount = 0; badCode = false; $('#testRes').textContent = ''; renderLink(); renderStatus(); scheduleFlush(0); };
 $('#urlIn').onchange = e => {
   const v = e.target.value.trim();
   if (v && !EXEC_RX.test(v)){
@@ -523,7 +543,7 @@ $('#urlIn').onchange = e => {
       : '✗ De link moet beginnen met https://script.google.com/macros/s/ en eindigen op /exec.';
     return;
   }
-  S.url = v; save(); failCount = 0; $('#testRes').textContent = ''; renderStatus(); scheduleFlush(0);
+  S.url = v; save(); failCount = 0; badCode = false; $('#testRes').textContent = ''; renderLink(); renderStatus(); scheduleFlush(0);
 };
 $('#testBtn').onclick = async () => {
   const url = sheetUrl(), out = $('#testRes');
@@ -532,7 +552,7 @@ $('#testBtn').onclick = async () => {
   try { await postJSON(url, { teller: S.name, code: S.code, device: S.device, events: [] }); out.textContent = '✓ Werkt'; badCode = false; scheduleFlush(0); }
   catch (e){ out.textContent = '✗ Lukt niet (' + ((e && e.message) || 'fout') + ')'; }
 };
-if (!sheetUrl()) $('#settings').open = true;
+renderLink();
 
 function csv(){
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
@@ -574,7 +594,8 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 
 /* ---------- boot ---------- */
 renderWho(); render(); renderStatus(); setupDecoder();
-if (!S.name || (sheetUrl() && !S.code)) askName();
+if (!S.name || !S.code) askName();
+loadConfig().then(() => { if (!sheetUrl()) $('#settings').open = true; });
 scheduleFlush(500);
 </script>
 </body>
