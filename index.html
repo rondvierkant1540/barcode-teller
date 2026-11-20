@@ -138,7 +138,7 @@ dialog h3{margin:0 0 6px}
     <div class="cam" id="camBox">
       <video id="video" playsinline muted></video>
       <div class="guide"></div>
-      <div class="camtools"><button id="torchBtn" hidden>🔦 Licht</button></div>
+      <div class="camtools"><button id="zoomBtn" hidden>🔍 2×</button> <button id="torchBtn" hidden>🔦 Licht</button></div>
       <div class="cammsg" id="camMsg">Camera starten…</div>
     </div>
     <form class="row" id="typeForm" autocomplete="off" style="margin-top:10px">
@@ -408,7 +408,6 @@ $('#plBtn').onclick = () => loadProducts(true);
 const video = $('#video');
 let stream = null, track = null, timer = null, wakeLock = null, torchOn = false;
 let detector = null, zx = null, decoding = false;
-let cand = null, candN = 0;
 const armed = new Map();   // barcode -> last time seen; blocks the same code until it left the frame
 
 async function setupDecoder(){
@@ -435,32 +434,53 @@ const ctx = canvas.getContext('2d', { willReadFrequently: true });
 async function readFrame(){
   const vw = video.videoWidth, vh = video.videoHeight;
   if (!vw || !vh) return null;
-  const cw = vw * 0.86, ch = vh * 0.32, sx = (vw - cw) / 2, sy = (vh - ch) / 2;   // band around the guide box
-  const sc = Math.min(1, 900 / cw);
-  canvas.width = Math.round(cw * sc); canvas.height = Math.round(ch * sc);
-  ctx.drawImage(video, sx, sy, cw, ch, 0, 0, canvas.width, canvas.height);
-  if (detector){ try { const r = await detector.detect(canvas); return r && r.length ? r[0].rawValue : null; } catch { return null; } }
+  if (detector){
+    // Ingebouwde lezer (Android): volledig beeld op volle resolutie; neem de barcode het dichtst bij het midden.
+    try {
+      const r = await detector.detect(video);
+      let best = null, bd = Infinity;
+      for (const b of r || []){
+        const bb = b.boundingBox, cx = bb.x + bb.width / 2, cy = bb.y + bb.height / 2;
+        if (Math.abs(cy - vh / 2) > vh * 0.22 || Math.abs(cx - vw / 2) > vw * 0.4) continue;   // buiten het kader
+        const d = Math.hypot((cx - vw / 2) / vw, (cy - vh / 2) / vh);
+        if (d < bd){ bd = d; best = b; }
+      }
+      return best ? best.rawValue : null;
+    } catch { return null; }
+  }
   if (zx){
+    // ZXing (o.a. iPhone): uitsnede rond het kader, zo weinig mogelijk verkleind
+    const cw = vw * 0.86, ch = vh * 0.36, sx = (vw - cw) / 2, sy = (vh - ch) / 2;
+    const sc = Math.min(1, 1400 / cw);
+    canvas.width = Math.round(cw * sc); canvas.height = Math.round(ch * sc);
+    ctx.drawImage(video, sx, sy, cw, ch, 0, 0, canvas.width, canvas.height);
     // afwisselend snel en grondig lezen, met twee manieren om zwart/wit te scheiden
     const Z = ZXing, n = ++zx.n, src = new Z.HTMLCanvasElementLuminanceSource(canvas);
     try { return (n % 3 === 0 ? zx.h : zx.r).decodeWithState(new Z.BinaryBitmap(n % 2 ? new Z.HybridBinarizer(src) : new Z.GlobalHistogramBinarizer(src))).getText(); } catch { return null; }
   }
   return null;
 }
+/* Een code wordt pas aanvaard als hij meermaals hetzelfde gelezen wordt (laatste 1,5 s):
+   2× voor een code uit de productlijst, 4× (en 80% van de lezingen) voor een onbekende code.
+   Zo glippen verkeerd gelezen codes met toevallig een geldig controlecijfer er niet door. */
+const votes = [];
 async function loop(){
   if (!stream) return;
   if (decoding && !ocrBusy){
     const code = await readFrame(), now = Date.now();
+    while (votes.length && now - votes[0].t > 1500) votes.shift();
     if (code && decoding){
-      if (code === cand) candN++; else { cand = code; candN = 1; }
-      if (candN >= 2){
+      votes.push({ code, t: now });
+      const same = votes.filter(v => v.code === code).length;
+      const known = !plLoaded() || !!lookup(code);
+      if (same >= (known ? 2 : 4) && same / votes.length >= (known ? 0.5 : 0.8)){
         const seen = armed.get(code);
         armed.set(code, now);
-        if (!seen || now - seen > 900){ beep(true); onCode(code); }
+        if (!seen || now - seen > 900){ votes.length = 0; beep(true); onCode(code); }
       }
-    } else if (!code){ cand = null; candN = 0; }
+    }
   }
-  timer = setTimeout(loop, decoding ? (detector ? 80 : 60) : 200);
+  timer = setTimeout(loop, decoding ? (detector ? 70 : 60) : 200);
 }
 async function startCam(){
   if (stream) return;
@@ -482,6 +502,10 @@ async function startCam(){
   msg.textContent = 'Houd de barcode horizontaal in het kader';
   let caps = {}; try { caps = track.getCapabilities ? track.getCapabilities() : {}; } catch {}
   $('#torchBtn').hidden = !caps.torch;
+  // Zoom: een gsm kan niet scherp stellen van heel dichtbij. Met 2× zoom houd je afstand en blijft het beeld scherp.
+  zoomLevels = caps.zoom && caps.zoom.max >= 1.5 ? [1, Math.min(2, caps.zoom.max), Math.min(3, caps.zoom.max)].filter((z, i, a) => a.indexOf(z) === i) : [];
+  $('#zoomBtn').hidden = !zoomLevels.length;
+  if (zoomLevels.length){ await setZoom(S.zoom && zoomLevels.indexOf(S.zoom) > -1 ? S.zoom : 1); msg.textContent = 'Houd de barcode in het kader. Wazig? Neem iets meer afstand en gebruik 🔍.'; }
   try { wakeLock = navigator.wakeLock ? await navigator.wakeLock.request('screen') : null; } catch {}
   loop();
 }
@@ -491,6 +515,13 @@ function stopCam(){
   stream = null; track = null; torchOn = false; video.srcObject = null;
   try { wakeLock && wakeLock.release(); } catch {} wakeLock = null;
 }
+let zoomLevels = [];
+async function setZoom(z){
+  try { await track.applyConstraints({ advanced: [{ zoom: z }] }); S.zoom = z; save(); } catch {}
+  const next = zoomLevels[(zoomLevels.indexOf(z) + 1) % zoomLevels.length];
+  $('#zoomBtn').textContent = '🔍 ' + String(next).replace('.', ',') + '×';
+}
+$('#zoomBtn').onclick = () => { if (track && zoomLevels.length) setZoom(zoomLevels[(zoomLevels.indexOf(S.zoom || 1) + 1) % zoomLevels.length]); };
 $('#torchBtn').onclick = async () => {
   try { torchOn = !torchOn; await track.applyConstraints({ advanced: [{ torch: torchOn }] }); } catch { toast('Licht niet beschikbaar.'); }
 };
@@ -522,7 +553,7 @@ function showScan(){
   $('#entryForm').hidden = true; $('#scanPhase').hidden = false;
   $('#typeIn').value = '';
   $('#ocrBox').hidden = true;
-  cand = null; candN = 0;
+  votes.length = 0;
   if (lastSent) armed.set(lastSent, Date.now());   // same box still in view: don't re-scan it straight away
   if (S.hw){
     $('#camBox').hidden = true; $('#ocrBtn').hidden = true; $('#typeIn').setAttribute('inputmode', 'none'); $('#typeIn').placeholder = 'Scan met de handscanner';
