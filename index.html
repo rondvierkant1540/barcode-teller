@@ -76,6 +76,14 @@ label.f{display:block;font-size:13.5px;color:var(--muted);font-weight:600;margin
 .bcbox input{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:19px;font-weight:700}
 .bcbox input[readonly]{border-color:transparent;background:transparent;padding-left:0}
 #fQty{font-size:26px;font-weight:800;text-align:center;padding:12px}
+.pcard{border-radius:12px;padding:10px 12px;margin-top:10px;font-size:15px;line-height:1.35}
+.pcard b{font-size:16.5px}.pcard .small{color:inherit;opacity:.85}
+.pcard.ok{background:#e3f3e9;color:#14532d}.pcard.unk{background:var(--warn-weak);color:var(--warn)}.pcard.off{background:var(--line);color:var(--muted)}
+@media (prefers-color-scheme:dark){.pcard.ok{background:#17301f;color:#9be3b5}}
+.pcard button{margin-top:8px;padding:8px 12px}
+.chip{display:block;width:100%;text-align:left;margin-top:8px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:var(--bg)}
+.chip .code{font-weight:700}.chip.ok{border-color:#2e9e5b}.chip .small{display:block}
+.req{color:var(--danger)}
 .toast{position:fixed;left:50%;top:max(14px,env(safe-area-inset-top));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 15px;border-radius:11px;font-size:15px;z-index:40;display:none;max-width:92vw;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 dialog{border:0;border-radius:16px;padding:18px;max-width:420px;width:calc(100% - 32px);background:var(--card);color:var(--ink)}
 dialog::backdrop{background:rgba(0,0,0,.45)}
@@ -102,6 +110,9 @@ dialog h3{margin:0 0 6px}
   <details class="card" id="settings">
     <summary>Instellingen</summary>
     <label class="switch"><input type="checkbox" id="hwToggle"> Ik gebruik een handscanner (geen camera)</label>
+    <label class="f">Productlijst</label>
+    <div class="small" id="plInfo"></div>
+    <button class="btn" id="plBtn" style="margin-top:8px">↻ Productlijst vernieuwen</button>
     <label class="f">Koppeling met Google Sheet</label>
     <div class="small" id="urlInfo"></div>
     <input type="url" id="urlIn" placeholder="Andere link enkel op deze gsm (optioneel)" autocapitalize="off" spellcheck="false" style="margin-top:8px">
@@ -131,22 +142,29 @@ dialog h3{margin:0 0 6px}
       <div class="cammsg" id="camMsg">Camera starten…</div>
     </div>
     <form class="row" id="typeForm" autocomplete="off" style="margin-top:10px">
-      <input type="text" id="typeIn" inputmode="numeric" placeholder="Of typ de barcode" autocapitalize="off" spellcheck="false">
+      <input type="text" id="typeIn" inputmode="numeric" placeholder="Of typ barcode of artikelcode" autocapitalize="off" spellcheck="false">
       <button class="btn" type="submit">OK</button>
     </form>
+    <button class="btn" id="ocrBtn" style="width:100%;margin-top:10px">🔢 Cijfercode lezen (etiket zonder goede barcode)</button>
+    <div class="card" id="ocrBox" hidden><div class="small" id="ocrMsg"></div><div id="ocrList"></div></div>
   </section>
 
   <form id="entryForm" autocomplete="off" hidden>
-    <label class="f" style="margin-top:0">Barcode</label>
+    <label class="f" style="margin-top:0">Code</label>
     <div class="bcbox">
       <input type="text" id="fCode" inputmode="numeric" autocapitalize="off" spellcheck="false">
       <button type="button" class="btn" id="rescanBtn">↻ Scan</button>
     </div>
+    <div class="pcard" id="prodCard"></div>
     <div class="note" id="dupNote" hidden></div>
+    <div id="unkFields" hidden>
+      <label class="f" for="fMerk">Merk <span class="req" id="reqM">*</span></label>
+      <input type="text" id="fMerk" maxlength="60" enterkeyhint="next" autocomplete="off">
+      <label class="f" for="fType">Type / omschrijving <span class="req" id="reqT">*</span></label>
+      <input type="text" id="fType" maxlength="120" enterkeyhint="next" autocomplete="off">
+    </div>
     <label class="f" for="fQty">Aantal</label>
     <input type="number" id="fQty" inputmode="numeric" min="0" step="1" enterkeyhint="send">
-    <label class="f" for="fDesc">Merk / beschrijving</label>
-    <input type="text" id="fDesc" maxlength="120" placeholder="optioneel" enterkeyhint="send">
     <label class="f" for="fNote">Commentaar</label>
     <input type="text" id="fNote" maxlength="200" placeholder="optioneel" enterkeyhint="send">
     <button type="submit" class="btn primary huge" style="margin-top:18px" id="sendBtn">Verzenden</button>
@@ -251,7 +269,7 @@ $('#nameForm').onsubmit = e => {
   S.name = v.slice(0, 40);
   const c = $('#codeIn').value.trim();
   if (c !== S.code){ S.code = c; badCode = false; failCount = 0; scheduleFlush(0); }
-  save(); renderWho(); renderStatus();
+  save(); renderWho(); renderStatus(); loadProducts(true);
   const f = afterName; afterName = null; if (f) setTimeout(f, 50);
 };
 $('#nameDlg').addEventListener('cancel', e => { if (!S.name) e.preventDefault(); });
@@ -270,7 +288,7 @@ function render(flash){
     if (code === flash) li.className = 'new';
     li.innerHTML = '<div class="li-l"><div class="code"></div><div class="sub"></div></div><div style="text-align:right"><div class="qty"></div><div class="pend"></div></div>';
     li.querySelector('.code').textContent = code;
-    li.querySelector('.sub').textContent = [it.desc, it.note].filter(Boolean).join(' · ') || fmtTime(it.t);
+    li.querySelector('.sub').textContent = [it.found === false ? '⚠ onbekend' : '', it.merk && it.found === false ? it.merk : '', it.desc, it.note].filter(Boolean).join(' · ') || fmtTime(it.t);
     li.querySelector('.qty').textContent = it.qty;
     li.querySelector('.pend').textContent = pend.has(code) ? '⏳ wacht' : '';
     li.onclick = () => openEdit(code);
@@ -312,7 +330,7 @@ async function flush(){
   if (badCode) return;
   if (S.queue.length) scheduleFlush(failCount ? Math.min(60000, 3000 * 2 ** Math.min(failCount - 1, 4)) : 200);
 }
-window.addEventListener('online', () => { failCount = 0; loadConfig(); scheduleFlush(100); });
+window.addEventListener('online', () => { failCount = 0; loadConfig().then(() => loadProducts()); scheduleFlush(100); });
 setInterval(() => { if (S.queue.length && !flushing && !flushT) scheduleFlush(0); }, 20000);
 
 function renderStatus(){
@@ -326,6 +344,65 @@ function renderStatus(){
   else { dot.className = 'dot wait'; tx.textContent = `${n} te versturen`; }
 }
 $('#status').onclick = () => { if (badCode) askName(); else if (!sheetUrl()) $('#settings').open = true; };
+
+/* ---------- productlijst (uit tabblad Producten, zonder prijzen) ---------- */
+const PKEY = 'stocktelling_products';
+let PL = { version: '', t: 0, list: [] }, PIDX = null, plLoading = false;
+try { const d = JSON.parse(localStorage.getItem(PKEY)); if (d && Array.isArray(d.list)) PL = d; } catch {}
+const bcKey = s => /^\d+$/.test(s) ? (s.replace(/^0+/, '') || '0') : '';
+const artKey = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const artLoose = s => { s = artKey(s); return /^\d+$/.test(s) ? (s.replace(/^0+/, '') || '0') : s; };
+const plLoaded = () => PL.list.length > 0;
+function buildIndex(){
+  const byBc = new Map(), byArt = new Map(), byLoose = new Map();
+  PL.list.forEach((p, i) => {
+    const b = bcKey(p[0]); if (b && !byBc.has(b)) byBc.set(b, i);
+    const a = artKey(p[1]); if (a && !byArt.has(a)) byArt.set(a, i);
+    const l = artLoose(p[1]); if (l) byLoose.set(l, byLoose.has(l) ? -1 : i);   // -1: niet eenduidig
+  });
+  PIDX = { byBc, byArt, byLoose };
+}
+/** Zoekt op barcode (ook zonder voorloopnullen), dan op artikelcode ("1400.2137" = "14002137"). */
+function lookup(code){
+  if (!plLoaded()) return null;
+  if (!PIDX) buildIndex();
+  code = String(code || '').replace(/\s+/g, '');
+  let i = PIDX.byBc.get(bcKey(code)), via = 'barcode';
+  if (i === undefined){ i = PIDX.byArt.get(artKey(code)); via = 'artikelcode'; }
+  if (i === undefined){ const l = PIDX.byLoose.get(artLoose(code)); if (l >= 0) i = l; }
+  if (i === undefined) return null;
+  const p = PL.list[i];
+  return { bc: p[0], art: p[1], oms: p[2], merk: p[3], lev: p[4], canon: p[0] || p[1], via };
+}
+function eanOk(s){
+  if (!/^\d+$/.test(s) || [8, 12, 13, 14].indexOf(s.length) < 0) return false;
+  let sum = 0; for (let i = 0; i < s.length; i++) sum += Number(s[i]) * ((s.length - 1 - i) % 2 === 1 ? 3 : 1);
+  return sum % 10 === 0;
+}
+const looksLikeEan = s => /^\d+$/.test(s) && [8, 12, 13, 14].indexOf(s.length) > -1;
+async function loadProducts(force){
+  const url = sheetUrl();
+  if (!url || !S.code || plLoading) return;
+  if (!force && plLoaded() && Date.now() - PL.t < 10 * 60 * 1000) return;
+  plLoading = true; renderPl();
+  try {
+    const j = await postJSON(url, { action: 'products', version: PL.version, code: S.code, teller: S.name, device: S.device });
+    if (j.same) PL.t = Date.now();
+    else if (Array.isArray(j.products)){ PL = { version: j.version, t: Date.now(), list: j.products }; PIDX = null; }
+    try { localStorage.setItem(PKEY, JSON.stringify(PL)); } catch {}
+    if (force) toast(`Productlijst: ${PL.list.length.toLocaleString('nl-BE')} artikelen`);
+  } catch (e){
+    if (/teamcode/i.test((e && e.message) || '')){ badCode = true; renderStatus(); }
+    if (force) toast('Productlijst ophalen lukt niet (' + ((e && e.message) || 'fout') + ')');
+  }
+  plLoading = false; renderPl();
+}
+function renderPl(){
+  $('#plInfo').textContent = plLoading ? 'Bezig met ophalen…'
+    : plLoaded() ? `${PL.list.length.toLocaleString('nl-BE')} artikelen · bijgewerkt ${fmtTime(PL.t)}`
+    : 'Nog niet geladen (internet en teamcode nodig).';
+}
+$('#plBtn').onclick = () => loadProducts(true);
 
 /* ---------- camera + decoding ---------- */
 const video = $('#video');
@@ -348,7 +425,9 @@ async function setupDecoder(){
     const Z = ZXing, hints = new Map();
     hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E, Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.ITF]);
     const r = new Z.MultiFormatReader(); r.setHints(hints);
-    zx = { r };
+    const hh = new Map(hints); hh.set(Z.DecodeHintType.TRY_HARDER, true);      // grondiger, voor slechte barcodes
+    const h = new Z.MultiFormatReader(); h.setHints(hh);
+    zx = { r, h, n: 0 };
   }
 }
 const canvas = document.createElement('canvas');
@@ -361,12 +440,16 @@ async function readFrame(){
   canvas.width = Math.round(cw * sc); canvas.height = Math.round(ch * sc);
   ctx.drawImage(video, sx, sy, cw, ch, 0, 0, canvas.width, canvas.height);
   if (detector){ try { const r = await detector.detect(canvas); return r && r.length ? r[0].rawValue : null; } catch { return null; } }
-  if (zx){ const Z = ZXing; try { return zx.r.decodeWithState(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(canvas)))).getText(); } catch { return null; } }
+  if (zx){
+    // afwisselend snel en grondig lezen, met twee manieren om zwart/wit te scheiden
+    const Z = ZXing, n = ++zx.n, src = new Z.HTMLCanvasElementLuminanceSource(canvas);
+    try { return (n % 3 === 0 ? zx.h : zx.r).decodeWithState(new Z.BinaryBitmap(n % 2 ? new Z.HybridBinarizer(src) : new Z.GlobalHistogramBinarizer(src))).getText(); } catch { return null; }
+  }
   return null;
 }
 async function loop(){
   if (!stream) return;
-  if (decoding){
+  if (decoding && !ocrBusy){
     const code = await readFrame(), now = Date.now();
     if (code && decoding){
       if (code === cand) candN++; else { cand = code; candN = 1; }
@@ -385,7 +468,7 @@ async function startCam(){
   if (!window.isSecureContext || !/^https?:$/.test(location.protocol)){ msg.textContent = 'De camera werkt enkel via de https-link van de website. Typ de barcode hieronder.'; return; }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ msg.textContent = 'Deze browser ondersteunt geen camera. Typ de barcode hieronder.'; return; }
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
   } catch (e){
     stream = null;
     msg.textContent = e && e.name === 'NotAllowedError' ? 'Camera geweigerd. Tik op het icoon links van het adres → Machtigingen → Camera → Toestaan.' : 'Camera kon niet starten. Typ de barcode hieronder.';
@@ -438,13 +521,14 @@ function showScan(){
   $('#mTitle').textContent = 'Telling toevoegen';
   $('#entryForm').hidden = true; $('#scanPhase').hidden = false;
   $('#typeIn').value = '';
+  $('#ocrBox').hidden = true;
   cand = null; candN = 0;
   if (lastSent) armed.set(lastSent, Date.now());   // same box still in view: don't re-scan it straight away
   if (S.hw){
-    $('#camBox').hidden = true; $('#typeIn').setAttribute('inputmode', 'none'); $('#typeIn').placeholder = 'Scan met de handscanner';
+    $('#camBox').hidden = true; $('#ocrBtn').hidden = true; $('#typeIn').setAttribute('inputmode', 'none'); $('#typeIn').placeholder = 'Scan met de handscanner';
     setTimeout(() => $('#typeIn').focus(), 50);
   } else {
-    $('#camBox').hidden = false; $('#typeIn').setAttribute('inputmode', 'numeric'); $('#typeIn').placeholder = 'Of typ de barcode';
+    $('#camBox').hidden = false; $('#ocrBtn').hidden = false; $('#typeIn').setAttribute('inputmode', 'text'); $('#typeIn').placeholder = 'Of typ barcode of artikelcode';
     decoding = true; startCam();
   }
 }
@@ -458,41 +542,88 @@ function onCode(code){
   decoding = false;
   showForm(cleanCode(code), 'new');
 }
+let formKey = null;   // code waaronder de telling bewaard wordt (barcode of artikelcode van het product)
 function showForm(code, m){
   mode = m;
-  const k = S.known[code];
+  const prod = lookup(code);
+  formKey = prod ? prod.canon : code;
+  const k = S.known[formKey];
   $('#scanPhase').hidden = true; $('#entryForm').hidden = false;
   $('#mTitle').textContent = m === 'edit' ? 'Telling aanpassen' : 'Telling toevoegen';
   const fc = $('#fCode'); fc.value = code; fc.readOnly = m === 'edit';
   $('#rescanBtn').hidden = m === 'edit';
   $('#delBtn').hidden = m !== 'edit';
+  // product gevonden of niet
+  const card = $('#prodCard');
+  card.innerHTML = '';
+  const line = (txt, cls) => { const d = document.createElement(cls === 'b' ? 'b' : 'div'); if (cls && cls !== 'b') d.className = cls; d.textContent = txt; card.appendChild(d); return d; };
+  if (prod){
+    card.className = 'pcard ok';
+    line('✓ ' + prod.oms, 'b');
+    line([prod.merk, prod.lev].filter(Boolean).join(' · '));
+    line([prod.art ? 'Art. ' + prod.art : '', prod.bc ? 'EAN ' + prod.bc : ''].filter(Boolean).join(' · '), 'small');
+  } else if (plLoaded()){
+    card.className = 'pcard unk';
+    line('⚠ Niet gevonden in de productlijst', 'b');
+    line('Vul merk en type in. Het artikel komt ook in het tabblad "Onbekende artikelen".');
+    if (looksLikeEan(code) && !eanOk(code)){
+      line('Let op: het controlecijfer van deze code klopt niet, waarschijnlijk verkeerd gelezen of getypt.', 'small');
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = '↻ Opnieuw scannen';
+      b.onclick = () => showScan(); card.appendChild(b);
+    }
+  } else {
+    card.className = 'pcard off';
+    line('Productlijst nog niet geladen: controle niet mogelijk.', 'small');
+  }
+  $('#unkFields').hidden = !!prod;
+  $('#reqM').hidden = $('#reqT').hidden = !plLoaded();
   const dn = $('#dupNote');
   if (m === 'new' && k){
     dn.hidden = false;
     dn.textContent = `Al geteld op deze gsm: ${k.qty} st. (${fmtTime(k.t)}). Wat je nu verzendt, vervangt die telling.`;
   } else dn.hidden = true;
   $('#fQty').value = k ? k.qty : 1;
-  $('#fDesc').value = k ? (k.desc || '') : '';
+  $('#fMerk').value = k && !prod ? (k.merk || '') : '';
+  $('#fType').value = k && !prod ? (k.desc || '') : '';
   $('#fNote').value = k ? (k.note || '') : '';
   $('#modal').scrollTop = 0;
-  const q = $('#fQty'); q.focus(); try { q.select(); } catch {}
+  const first = !prod && !$('#fMerk').value ? $('#fMerk') : $('#fQty');
+  first.focus(); if (first === $('#fQty')) { try { first.select(); } catch {} }
 }
 $('#rescanBtn').onclick = () => showScan();
-// a changed barcode in the form: refresh the "al geteld" note
-$('#fCode').onchange = e => { const c = cleanCode(e.target.value); if (c && mode === 'new'){ const q = $('#fQty').value, d = $('#fDesc').value, n = $('#fNote').value; showForm(c, 'new'); if (!S.known[c]){ $('#fQty').value = q; $('#fDesc').value = d; $('#fNote').value = n; } } };
+// code in het formulier aangepast: opnieuw opzoeken, ingevulde waarden behouden
+$('#fCode').onchange = e => {
+  const c = cleanCode(e.target.value);
+  if (!c || mode !== 'new') return;
+  const keep = { q: $('#fQty').value, m: $('#fMerk').value, t: $('#fType').value, n: $('#fNote').value };
+  showForm(c, 'new');
+  if (!S.known[formKey]){ $('#fQty').value = keep.q; $('#fMerk').value = keep.m; $('#fType').value = keep.t; $('#fNote').value = keep.n; }
+};
+// Enter: naar het volgende veld i.p.v. meteen verzenden
+$('#fMerk').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); $('#fType').focus(); } });
+$('#fType').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); $('#fQty').focus(); try { $('#fQty').select(); } catch {} } });
 
 $('#entryForm').onsubmit = e => {
   e.preventDefault();
-  const code = cleanCode($('#fCode').value);
-  if (!code){ $('#fCode').focus(); return; }
+  const scanned = cleanCode($('#fCode').value);
+  if (!scanned){ $('#fCode').focus(); return; }
+  const prod = lookup(scanned), code = prod ? prod.canon : scanned;
   const raw = $('#fQty').value.trim();
   const qty = raw === '' ? NaN : Number(raw);
   if (!Number.isFinite(qty) || qty < 0 || Math.round(qty) !== qty){ toast('Vul een geldig aantal in.'); $('#fQty').focus(); return; }
-  const desc = $('#fDesc').value.trim().slice(0, 120), note = $('#fNote').value.trim().slice(0, 200);
-  S.known[code] = { qty, desc, note, t: Date.now() };
-  queueEvent({ op: 'set', mode, barcode: code, qty, desc, note });
+  const merk = prod ? '' : $('#fMerk').value.trim().slice(0, 60);
+  const type = prod ? '' : $('#fType').value.trim().slice(0, 120);
+  if (!prod && plLoaded() && (!merk || !type)){
+    toast('Vul merk en type in: dit artikel staat niet in de productlijst.');
+    (merk ? $('#fType') : $('#fMerk')).focus();
+    return;
+  }
+  const note = $('#fNote').value.trim().slice(0, 200);
+  if (mode === 'edit' && formKey && formKey !== code) delete S.known[formKey];
+  S.known[code] = { qty, note, t: Date.now(), found: prod ? true : (plLoaded() ? false : undefined), desc: prod ? prod.oms : type, merk: prod ? prod.merk : merk };
+  queueEvent({ op: 'set', mode, barcode: code, qty, merk, type, note });
   lastSent = code; sessionCount++;
-  toast(`✓ ${code} → ${qty} st.`);
+  toast(`✓ ${prod ? prod.oms.slice(0, 32) : code} → ${qty} st.`);
   render(code);
   if (mode === 'new'){
     $('#mCount').textContent = `${sessionCount} verzonden`;
@@ -500,7 +631,7 @@ $('#entryForm').onsubmit = e => {
   } else closeModal();
 };
 $('#delBtn').onclick = async () => {
-  const code = cleanCode($('#fCode').value), k = S.known[code];
+  const code = formKey, k = S.known[code];
   if (!k) return;
   if (!(await confirmBox('Telling verwijderen?', `${code} (${k.qty} st.) wordt ook uit de Sheet verwijderd.`, 'Verwijderen'))) return;
   delete S.known[code];
@@ -514,11 +645,112 @@ function openEdit(code){
   showForm(code, 'edit');
 }
 
+/* ---------- cijfercode lezen (OCR) ---------- */
+const TESS = { js: '7.0.0', core: '7.0.0', lang: 'https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng/4.0.0_best_int' };
+let ocrWorker = null, ocrLoading = null, ocrBusy = false;
+function loadScript(src){
+  return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('laden mislukt')); document.head.appendChild(el); });
+}
+function getOcr(){
+  if (ocrWorker) return Promise.resolve(ocrWorker);
+  if (!ocrLoading) ocrLoading = (async () => {
+    if (!window.Tesseract) await loadScript(`https://cdn.jsdelivr.net/npm/tesseract.js@${TESS.js}/dist/tesseract.min.js`);
+    const w = await Tesseract.createWorker('eng', 1, {
+      workerPath: `https://cdn.jsdelivr.net/npm/tesseract.js@${TESS.js}/dist/worker.min.js`,
+      corePath: `https://cdn.jsdelivr.net/npm/tesseract.js-core@${TESS.core}`,
+      langPath: TESS.lang
+    });
+    await w.setParameters({ tessedit_char_whitelist: '0123456789.-/', tessedit_pageseg_mode: '6' });
+    ocrWorker = w;
+    return w;
+  })().catch(e => { ocrLoading = null; throw e; });
+  return ocrLoading;
+}
+/** Uitsnede rond het kader, groter en in grijstinten: dat leest beter. */
+function grabRegion(){
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return null;
+  const cw = vw * 0.9, ch = vh * 0.42, sx = (vw - cw) / 2, sy = (vh - ch) / 2;
+  const sc = Math.max(1, Math.min(2.5, 1800 / cw));
+  const c = document.createElement('canvas');
+  c.width = Math.round(cw * sc); c.height = Math.round(ch * sc);
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.imageSmoothingQuality = 'high';
+  try { g.filter = 'grayscale(1) contrast(1.5)'; } catch {}
+  g.drawImage(video, sx, sy, cw, ch, 0, 0, c.width, c.height);
+  return c;
+}
+/** Alle mogelijke codes uit de gelezen tekst, best passende eerst. */
+function ocrCandidates(text){
+  const codes = new Set();
+  const add = c => { if (c.replace(/\D/g, '').length >= 4) codes.add(c); };
+  String(text || '').split(/\n/).forEach(lineTxt => {
+    (lineTxt.match(/\d[\d .\-\/]*\d/g) || []).forEach(tok => {
+      const t = tok.trim();
+      add(t.replace(/\s+/g, ''));          // met punten/streepjes: artikelcode
+      add(t.replace(/\D/g, ''));           // enkel cijfers: barcode ("5 410091 736354")
+      t.split(/\s+/).forEach(add);         // losse stukken
+    });
+  });
+  const seen = new Set(), out = [];
+  [...codes].map(code => {
+    const prod = lookup(code), digits = /^\d+$/.test(code), ean = eanOk(code);
+    const score = prod ? (prod.via === 'barcode' ? 100 : 90) + code.length / 100 : ean ? 60 : digits ? 10 + code.length : 5;
+    return { code, prod, ean, score };
+  }).sort((a, b) => b.score - a.score).forEach(c => {
+    const key = c.prod ? 'p:' + c.prod.canon : 'c:' + c.code.replace(/\D/g, '');
+    if (!seen.has(key)){ seen.add(key); out.push(c); }
+  });
+  return out.slice(0, 5);
+}
+async function readDigits(){
+  if (ocrBusy) return;
+  const box = $('#ocrBox'), msg = $('#ocrMsg'), list = $('#ocrList'), btn = $('#ocrBtn');
+  box.hidden = false; list.innerHTML = '';
+  if (!stream){ msg.textContent = 'Start eerst de camera.'; return; }
+  ocrBusy = true; btn.disabled = true;
+  try {
+    msg.textContent = ocrWorker ? 'Cijfers lezen…' : 'Cijferlezer laden (eenmalig ±7 MB)…';
+    const w = await getOcr();
+    msg.textContent = 'Cijfers lezen…';
+    const img = grabRegion();
+    if (!img) throw new Error('geen camerabeeld');
+    const { data } = await w.recognize(img);
+    const cands = ocrCandidates(data && data.text);
+    const prods = cands.filter(c => c.prod);
+    if (prods.length === 1 && (cands[0] === prods[0])){
+      beep(true); box.hidden = true;
+      onCode(prods[0].code);
+      return;
+    }
+    if (!cands.length){
+      beep(false);
+      msg.textContent = 'Geen cijfers gevonden. Kom iets dichter, zorg voor licht en houd de code in het kader.';
+      return;
+    }
+    msg.textContent = 'Tik op de juiste code, of richt opnieuw en druk nog eens:';
+    cands.forEach(c => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'chip' + (c.prod ? ' ok' : '');
+      const cd = document.createElement('span'); cd.className = 'code'; cd.textContent = c.code; b.appendChild(cd);
+      const sub = document.createElement('span'); sub.className = 'small';
+      sub.textContent = c.prod ? '✓ ' + c.prod.oms : c.ean ? 'geldige barcode, niet in de productlijst' : (looksLikeEan(c.code) ? 'controlecijfer klopt niet' : 'niet in de productlijst');
+      b.appendChild(sub);
+      b.onclick = () => { beep(true); box.hidden = true; onCode(c.code); };
+      list.appendChild(b);
+    });
+  } catch (e){
+    msg.textContent = 'Cijfers lezen lukt niet (' + ((e && e.message) || 'fout') + '). Eerste keer is internet nodig om de cijferlezer te laden.';
+  } finally {
+    ocrBusy = false; btn.disabled = false;
+  }
+}
+$('#ocrBtn').onclick = readDigits;
+
 document.addEventListener('visibilitychange', () => {
   if (document.hidden){ if (stream){ decoding = false; stopCam(); } }
   else {
     if (modalOpen && !$('#scanPhase').hidden && !S.hw){ decoding = true; startCam(); }
-    loadConfig(); scheduleFlush(0);
+    loadConfig().then(() => loadProducts()); scheduleFlush(0);
   }
 });
 
@@ -595,7 +827,8 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 /* ---------- boot ---------- */
 renderWho(); render(); renderStatus(); setupDecoder();
 if (!S.name || !S.code) askName();
-loadConfig().then(() => { if (!sheetUrl()) $('#settings').open = true; });
+renderPl();
+loadConfig().then(() => { if (!sheetUrl()) $('#settings').open = true; loadProducts(); });
 scheduleFlush(500);
 </script>
 </body>
