@@ -1,6 +1,6 @@
 // Stocktelling – laat de app ook starten zonder internet.
 // Altijd eerst de nieuwste versie van het net; lukt dat niet, dan de bewaarde kopie.
-const CACHE = 'stocktelling-v5';
+const CACHE = 'stocktelling-v6';
 const FILES = ['./', './index.html', './manifest.json', './config.json', './icon-192.png', './icon-512.png', './icon-180.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
