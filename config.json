@@ -1,4 +1,4 @@
 {
-  "sheetUrl": "https://script.google.com/macros/s/AKfycbxx-sVN-Zouh8oTVkhSNQoA_pagmnakztDN7I8PD-jhrMj0Xybb4hmbXcmA57G27rZv/exec",
+  "sheetUrl": "https://script.google.com/macros/s/AKfycbwgpQmMdZoBq6zJgEGOJLzY9aW1meSG-vnVg6vgXtff4gJ-O6d1GpfJft2T8zmPBA/exec",
   "_uitleg": "Plak bij sheetUrl de Web-app-URL (eindigt op /exec) van de Google Sheet waar de tellingen naartoe moeten. Na het opslaan sturen alle gsm's naar die Sheet zodra ze de app openen."
 }
